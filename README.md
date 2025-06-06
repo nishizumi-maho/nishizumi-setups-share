@@ -1,19 +1,19 @@
 # nishizumi-setups-share
 
-This project provides a Python script for peer-to-peer sharing of iRacing setup files (`.sto`). It uses the BitTorrent DHT via `libtorrent` and runs `clamscan` to check files before sharing or after downloading. A minimal PyQt6 interface lets you browse your car folders and manage sharing.
+This project provides a Python script for peer-to-peer sharing of iRacing setup files (`.sto`). Instead of using `libtorrent`, it relies on a lightweight DHT implementation (`kademlia`) and transfers files over HTTP with `aiohttp`. When available, `clamscan` checks files before sharing or after downloading. A minimal PyQt6 interface lets you browse your car folders and manage sharing.
 
 ## Requirements
 
 - Python 3.12
-- `libtorrent` Python bindings
-- `clamav` (`clamscan` command)
+- `kademlia` and `aiohttp`
+- `clamav` (`clamscan` command) or Windows Defender
 - PyQt6 (for the optional GUI)
 
-Install dependencies on Ubuntu:
+Install dependencies (example using PowerShell):
 
-```bash
-pip install --user libtorrent PyQt6
-sudo apt-get install clamav
+```powershell
+py -m pip install kademlia aiohttp PyQt6
+# Optional: install ClamAV or ensure Windows Defender is available
 ```
 
 ## Usage
@@ -22,28 +22,28 @@ sudo apt-get install clamav
 
 To share your setups directory:
 
-```bash
-python3 share_setup.py --dir /path/to/iracing/setups
+```powershell
+py share_setup.py --dir C:\path\to\iracing\setups --share
 ```
 
-The script will ask for each car folder if you want to share the entire folder or create a subfolder named `share`. It will scan the folder with `clamscan` before creating a torrent and announcing it to the DHT. The generated magnet link is printed so other peers can download it.
+The script starts a small HTTP server and announces itself on the DHT. Any `.sto` files found in the selected directory will be available to other peers.
 
-To download setups from another peer using a magnet link:
+To download a specific setup from a peer:
 
-```bash
-python3 share_setup.py --dir /path/to/save/setups --download "magnet:?xt=..."
+```powershell
+py share_setup.py --dir C:\path\to\save --download 1.2.3.4:9000 CarName setup.sto
 ```
 
-The downloaded data is scanned with `clamscan` for safety.
+The downloaded file is scanned with `clamscan` when available.
 
-While running, the script keeps seeding your shared setups. Use `Ctrl+C` to stop sharing.
+While running, the script keeps serving your shared setups. Use `Ctrl+C` to stop sharing.
 
 ### Graphical interface
 
 Launch the GUI and select your setups folder:
 
-```bash
-python3 share_setup.py --gui
+```powershell
+py share_setup.py --gui
 ```
 
-The window lists car folders from the chosen directory and allows sharing or downloading setups via magnet links.
+The window lists car folders from the chosen directory and allows sharing or downloading setups found on other peers.
