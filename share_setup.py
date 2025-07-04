@@ -5,7 +5,7 @@ import time
 import subprocess
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QPushButton,
-    QListWidget, QLineEdit, QFileDialog, QMessageBox
+    QListWidget, QLineEdit, QFileDialog, QMessageBox, QCheckBox
 )
 
 
@@ -31,7 +31,13 @@ def scan_path(path: str) -> bool:
 
 def create_torrent(folder):
     fs = lt.file_storage()
-    lt.add_files(fs, folder)
+
+    def include(path):
+        return path.lower().endswith('.sto')
+
+    lt.add_files(fs, folder, include)
+    if fs.num_files() == 0:
+        raise RuntimeError('no .sto files found in ' + folder)
     t = lt.create_torrent(fs)
     t.add_tracker('udp://tracker.openbittorrent.com:80/announce')
     t.set_creator('iRacing setup sharer')
@@ -88,6 +94,11 @@ class ShareWindow(QWidget):
         btn_dir.clicked.connect(self.choose_dir)
         layout.addWidget(btn_dir)
 
+        self.filter_edit = QLineEdit()
+        self.filter_edit.setPlaceholderText('Filter cars')
+        self.filter_edit.textChanged.connect(self.refresh_cars)
+        layout.addWidget(self.filter_edit)
+
         self.car_list = QListWidget()
         layout.addWidget(self.car_list)
 
@@ -116,9 +127,12 @@ class ShareWindow(QWidget):
         self.car_list.clear()
         if not self.dir:
             return
-        for car in os.listdir(self.dir):
+        flt = self.filter_edit.text().lower()
+        for car in sorted(os.listdir(self.dir)):
             car_path = os.path.join(self.dir, car)
             if os.path.isdir(car_path):
+                if flt and flt not in car.lower():
+                    continue
                 self.car_list.addItem(car)
 
     def share_selected(self):
@@ -131,8 +145,23 @@ class ShareWindow(QWidget):
             return
         car = items[0].text()
         path = os.path.join(self.dir, car)
-        if scan_path(path):
-            handle = share_folder(self.ses, path)
+        share_entire = QMessageBox.question(
+            self,
+            'Share folder',
+            f'Share entire folder for {car}?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if share_entire == QMessageBox.StandardButton.Yes:
+            folder = path
+        else:
+            folder = os.path.join(path, 'share')
+            os.makedirs(folder, exist_ok=True)
+        if scan_path(folder):
+            try:
+                handle = share_folder(self.ses, folder)
+            except RuntimeError as e:
+                QMessageBox.warning(self, 'No setups', str(e))
+                return
             magnet = lt.make_magnet_uri(handle.get_torrent_info())
             self.status.setText(f'Sharing {car}: {magnet}')
         else:
